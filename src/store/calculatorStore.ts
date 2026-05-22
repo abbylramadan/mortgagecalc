@@ -12,10 +12,14 @@ interface CalculatorStore {
   // Calculation results (null until calculated)
   results: CalculationResults | null;
 
+  // When true, the user can jump to any step (set after first results view)
+  freeNavigation: boolean;
+
   // Actions
   setCurrentStep: (step: number) => void;
   updateInput: <K extends keyof UserInputs>(key: K, value: UserInputs[K]) => void;
   setResults: (results: CalculationResults) => void;
+  setFreeNavigation: (enabled: boolean) => void;
   reset: () => void;
   goToNextStep: () => void;
   goToPreviousStep: () => void;
@@ -29,6 +33,13 @@ const initialInputs: Partial<UserInputs> = {
     creditCards: 0,
     other: 0,
   },
+  monthlySavings: {
+    retirement401k: 0,
+    hsa: 0,
+    healthcare: 0,
+    other: 0,
+  },
+  preferredLoanType: 'FHA', // Default, will be auto-determined based on down payment
 };
 
 export const useCalculatorStore = create<CalculatorStore>()(
@@ -37,8 +48,11 @@ export const useCalculatorStore = create<CalculatorStore>()(
       currentStep: 1,
       inputs: initialInputs,
       results: null,
+      freeNavigation: false,
 
       setCurrentStep: (step) => set({ currentStep: step }),
+
+      setFreeNavigation: (enabled) => set({ freeNavigation: enabled }),
 
       updateInput: (key, value) =>
         set((state) => ({
@@ -55,6 +69,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
           currentStep: 1,
           inputs: initialInputs,
           results: null,
+          freeNavigation: false,
         }),
 
       goToNextStep: () =>
@@ -87,9 +102,10 @@ export const useCalculatorStore = create<CalculatorStore>()(
           case 7:
             return inputs.monthlyFunExpenses !== undefined && inputs.monthlyFunExpenses >= 0;
           case 8:
-            return !!inputs.downPaymentAmount && inputs.downPaymentAmount > 0;
+            // Monthly savings is optional, always allow to proceed
+            return true;
           case 9:
-            return !!inputs.preferredLoanType;
+            return !!inputs.downPaymentAmount && inputs.downPaymentAmount > 0;
           default:
             return false;
         }
@@ -100,6 +116,7 @@ export const useCalculatorStore = create<CalculatorStore>()(
       partialize: (state) => ({
         currentStep: state.currentStep,
         inputs: state.inputs,
+        freeNavigation: state.freeNavigation,
       }),
     }
   )

@@ -49,7 +49,7 @@ export function Step6EmergencyFund() {
             value={value}
             onChange={handleChange}
             onBlur={handleBlur}
-            placeholder="$10,000"
+            placeholder="10,000"
             prefix="$"
             helpText="Current emergency fund balance"
             className="text-center text-2xl font-semibold"

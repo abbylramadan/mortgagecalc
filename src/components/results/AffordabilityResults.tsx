@@ -10,26 +10,51 @@ import { MonthlyPaymentCard } from './MonthlyPaymentCard';
 import { BreakdownChart } from './BreakdownChart';
 import { BudgetBreakdownChart } from './BudgetBreakdownChart';
 import { MarketComparisonCard } from './MarketComparisonCard';
+import { PropertyRecommendations } from './PropertyRecommendations';
 import { getMunicipalityById } from '../../data/municipalities';
-import type { UserInputs, CalculationResults } from '../../types/calculator';
+import { fetchMarketData, marketDataToMunicipality } from '../../services/marketDataService';
+import type { UserInputs, CalculationResults, Municipality } from '../../types/calculator';
 
 export function AffordabilityResults() {
   const navigate = useNavigate();
-  const { inputs, setResults, reset } = useCalculatorStore();
+  const { inputs, setResults, reset, setFreeNavigation } = useCalculatorStore();
   const [results, setLocalResults] = useState<CalculationResults | null>(null);
+  const [municipality, setMunicipality] = useState<Municipality | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [housingRatio, setHousingRatio] = useState(0.28);
 
   useEffect(() => {
-    try {
-      // Calculate results
-      const calculatedResults = calculateMaxAffordableHome(inputs as UserInputs);
-      setLocalResults(calculatedResults);
-      setResults(calculatedResults);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during calculation');
-      console.error('Calculation error:', err);
-    }
-  }, [inputs, setResults]);
+    const calculateResults = async () => {
+      try {
+        let municipalityData: Municipality | undefined;
+
+        if (inputs.zipCode) {
+          const marketData = await fetchMarketData(inputs.zipCode);
+          municipalityData = marketDataToMunicipality(marketData);
+        } else {
+          municipalityData = getMunicipalityById(inputs.municipalityId!);
+        }
+
+        if (!municipalityData) {
+          throw new Error('Unable to load market data for this location');
+        }
+
+        setMunicipality(municipalityData);
+
+        const calculatedResults = await calculateMaxAffordableHome(
+          inputs as UserInputs,
+          { maxHousingRatio: housingRatio }
+        );
+        setLocalResults(calculatedResults);
+        setResults(calculatedResults);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred during calculation');
+        console.error('Calculation error:', err);
+      }
+    };
+
+    calculateResults();
+  }, [inputs, setResults, housingRatio]);
 
   if (error) {
     return (
@@ -79,9 +104,50 @@ export function AffordabilityResults() {
             {formatCurrency(results.maxHomePrice)}
           </motion.p>
           <p className="text-xl text-neutral-600">
-            Based on your financial profile and a {results.loanTerm}-year loan at{' '}
+            Based on your financial profile with a {results.loanTerm}-year <span className="font-semibold text-primary-700">{results.loanType} loan</span> at{' '}
             {formatPercent(results.interestRate)} interest
           </p>
+        </motion.div>
+
+        {/* Housing budget tuner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-12"
+        >
+          <Card>
+            <CardContent className="py-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-neutral-900">
+                    Max housing as % of gross income
+                  </h3>
+                  <p className="text-sm text-neutral-600">
+                    Lenders allow up to ~43%, but most planners recommend 28% or less. Drag to recalculate.
+                  </p>
+                </div>
+                <div className="text-3xl font-bold text-primary-600 tabular-nums">
+                  {Math.round(housingRatio * 100)}%
+                </div>
+              </div>
+              <input
+                type="range"
+                min={15}
+                max={43}
+                step={1}
+                value={Math.round(housingRatio * 100)}
+                onChange={(e) => setHousingRatio(Number(e.target.value) / 100)}
+                className="w-full accent-primary-600"
+                aria-label="Maximum housing percentage of gross income"
+              />
+              <div className="flex justify-between text-xs text-neutral-500 mt-1">
+                <span>15% (conservative)</span>
+                <span>28% (recommended)</span>
+                <span>43% (lender max)</span>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Key Metrics */}
@@ -123,12 +189,24 @@ export function AffordabilityResults() {
         </div>
 
         {/* Market Comparison */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-          <MarketComparisonCard
-            maxHomePrice={results.maxHomePrice}
-            municipality={getMunicipalityById(inputs.municipalityId!)!}
-          />
-        </motion.div>
+        {municipality && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+            <MarketComparisonCard
+              maxHomePrice={results.maxHomePrice}
+              municipality={municipality}
+            />
+          </motion.div>
+        )}
+
+        {/* Property Recommendations */}
+        {inputs.zipCode && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.62 }} className="mt-8">
+            <PropertyRecommendations
+              zipCode={inputs.zipCode}
+              maxPrice={results.maxHomePrice}
+            />
+          </motion.div>
+        )}
 
         {/* Monthly Payment Breakdown */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65 }} className="mt-8">
@@ -154,10 +232,12 @@ export function AffordabilityResults() {
         >
           <BudgetBreakdownChart
             monthlyNetIncome={results.monthlyNetIncome}
+            monthlyGrossIncome={(inputs.annualIncome || 0) / 12}
             housingCosts={results.estimatedMonthlyPayment.total + results.estimatedMonthlyPayment.utilities.total}
             monthlyDebts={(inputs.monthlyDebts?.carLoans || 0) + (inputs.monthlyDebts?.studentLoans || 0) + (inputs.monthlyDebts?.creditCards || 0) + (inputs.monthlyDebts?.other || 0)}
             foodExpenses={inputs.monthlyFoodExpenses || 0}
             funExpenses={inputs.monthlyFunExpenses || 0}
+            monthlySavings={(inputs.monthlySavings?.retirement401k || 0) + (inputs.monthlySavings?.hsa || 0) + (inputs.monthlySavings?.healthcare || 0) + (inputs.monthlySavings?.other || 0)}
             disposableIncome={results.monthlyDisposableIncome}
           />
         </motion.div>
@@ -223,7 +303,13 @@ export function AffordabilityResults() {
           transition={{ delay: 1 }}
           className="mt-12 flex justify-center gap-4"
         >
-          <Button variant="outline" onClick={() => navigate('/step/1')}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setFreeNavigation(true);
+              navigate('/step/1');
+            }}
+          >
             Adjust Inputs
           </Button>
           <Button

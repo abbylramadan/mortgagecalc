@@ -49,7 +49,7 @@ export function Step7FunExpenses() {
             value={value}
             onChange={handleChange}
             onBlur={handleBlur}
-            placeholder="$400"
+            placeholder="400"
             prefix="$"
             helpText="Monthly discretionary spending"
             className="text-center text-2xl font-semibold"

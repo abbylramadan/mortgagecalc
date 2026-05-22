@@ -49,7 +49,7 @@ export function Step5FoodExpenses() {
             value={value}
             onChange={handleChange}
             onBlur={handleBlur}
-            placeholder="$600"
+            placeholder="600"
             prefix="$"
             helpText="Average monthly spending on food"
             className="text-center text-2xl font-semibold"

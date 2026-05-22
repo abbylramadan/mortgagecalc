@@ -60,7 +60,7 @@ export function Step8DownPayment() {
             value={value}
             onChange={handleChange}
             onBlur={handleBlur}
-            placeholder="$40,000"
+            placeholder="40,000"
             prefix="$"
             error={error}
             helpText="Enter the amount you plan to put down"

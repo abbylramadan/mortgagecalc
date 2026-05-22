@@ -6,8 +6,9 @@ export interface UserInputs {
   // Step 1: Annual income
   annualIncome: number;
 
-  // Step 2: Municipality
-  municipalityId: string;
+  // Step 2: ZIP code and municipality
+  zipCode: string; // User-entered ZIP code
+  municipalityId: string; // Generated ID for market data
 
   // Step 3: Monthly debts breakdown
   monthlyDebts: {
@@ -29,10 +30,18 @@ export interface UserInputs {
   // Step 7: Monthly fun/discretionary expenses
   monthlyFunExpenses: number;
 
-  // Step 8: Down payment amount
+  // Step 8: Monthly savings contributions
+  monthlySavings?: {
+    retirement401k: number;
+    hsa: number;
+    healthcare: number;
+    other: number;
+  };
+
+  // Step 9: Down payment amount
   downPaymentAmount: number;
 
-  // Step 9: Preferred loan type
+  // Auto-determined loan type (not user-selected)
   preferredLoanType: LoanType;
 }
 
@@ -67,6 +76,7 @@ export interface CalculationResults {
   estimatedSqft: number;
   interestRate: number;
   loanTerm: number;
+  loanType: LoanType; // Auto-determined loan type
   recommendations: string[];
   warnings: string[];
 }

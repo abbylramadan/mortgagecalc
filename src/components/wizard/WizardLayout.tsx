@@ -9,8 +9,8 @@ import { useCalculatorStore } from '../../store/calculatorStore';
 export function WizardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { goNext, goBack, canGoNext, canGoBack, currentStep, totalSteps } = useWizardNavigation();
-  const { setCurrentStep } = useCalculatorStore();
+  const { goNext, goBack, goToStep, canGoNext, canGoBack, currentStep, totalSteps } = useWizardNavigation();
+  const { setCurrentStep, freeNavigation } = useCalculatorStore();
 
   // Extract step number from pathname (e.g., /step/1 -> 1)
   const pathStep = location.pathname.split('/').pop();
@@ -66,21 +66,40 @@ export function WizardLayout() {
         </header>
 
         {/* Progress Bar */}
-        <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
+        <ProgressBar
+          currentStep={currentStep}
+          totalSteps={totalSteps}
+          clickable={freeNavigation}
+          onStepClick={goToStep}
+        />
+
+        {freeNavigation && (
+          <div className="max-w-2xl mx-auto mb-6 flex justify-end">
+            <button
+              type="button"
+              onClick={() => navigate('/results')}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700"
+            >
+              ← Back to results
+            </button>
+          </div>
+        )}
 
         {/* Step Content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
-            className="mb-8"
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <div className="grid mb-8">
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              style={{ gridArea: '1 / 1' }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
         {/* Navigation */}
         <Navigation

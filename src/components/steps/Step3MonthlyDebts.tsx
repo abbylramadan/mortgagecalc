@@ -66,7 +66,7 @@ export function Step3MonthlyDebts() {
             onChange={handleChange('carLoans')}
             onBlur={handleBlur('carLoans')}
             label="Car Loans"
-            placeholder="$0"
+            placeholder="0"
             prefix="$"
           />
 
@@ -76,7 +76,7 @@ export function Step3MonthlyDebts() {
             onChange={handleChange('studentLoans')}
             onBlur={handleBlur('studentLoans')}
             label="Student Loans"
-            placeholder="$0"
+            placeholder="0"
             prefix="$"
           />
 
@@ -86,9 +86,8 @@ export function Step3MonthlyDebts() {
             onChange={handleChange('creditCards')}
             onBlur={handleBlur('creditCards')}
             label="Credit Cards"
-            placeholder="$0"
+            placeholder="0"
             prefix="$"
-            helpText="Minimum monthly payment"
           />
 
           <Input
@@ -97,7 +96,7 @@ export function Step3MonthlyDebts() {
             onChange={handleChange('other')}
             onBlur={handleBlur('other')}
             label="Other Debts"
-            placeholder="$0"
+            placeholder="0"
             prefix="$"
             helpText="Personal loans, child support, etc."
           />

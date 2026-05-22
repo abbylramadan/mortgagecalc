@@ -11,18 +11,18 @@ export function HomePage() {
   const features = [
     {
       icon: HomeIcon,
-      title: 'Smart Affordability',
-      description: 'Calculate exactly how much home you can afford based on your full financial picture',
+      title: 'Real Property Listings',
+      description: 'See actual homes within your budget - not just numbers, but real places you can buy',
     },
     {
       icon: CurrencyDollarIcon,
-      title: 'Location-Based Estimates',
-      description: 'Get accurate property tax and utility cost estimates for your desired area',
+      title: 'Metro-Specific Data',
+      description: 'Accurate property taxes and home prices for the top 10 U.S. metros',
     },
     {
       icon: ChartBarIcon,
-      title: 'Personalized Insights',
-      description: 'Receive tailored recommendations and see detailed payment breakdowns',
+      title: 'Smart Budget Analysis',
+      description: 'See if housing costs are healthy for your income with clear warnings and recommendations',
     },
   ];
 
@@ -36,11 +36,11 @@ export function HomePage() {
           className="text-center mb-16"
         >
           <h1 className="text-6xl font-bold text-neutral-900 mb-6">
-            Find Your Perfect Home Budget
+            Find Your Perfect Home
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-3xl mx-auto">
-            A modern, TurboTax-style calculator that considers your income, debts, location, and
-            lifestyle to determine what you can truly afford.
+            A smart home affordability calculator for buyers in the largest U.S. metros. Get your budget,
+            see real properties, and make informed decisions about where you can afford to live.
           </p>
           <Button
             size="lg"
@@ -92,8 +92,7 @@ export function HomePage() {
                     <div>
                       <p className="font-semibold text-neutral-900">Answer 9 Simple Questions</p>
                       <p className="text-sm text-neutral-600">
-                        One question at a time - income, location, debts, credit score, expenses,
-                        savings, and down payment
+                        Income, metro area, debts, credit score, expenses, savings, and down payment - one at a time
                       </p>
                     </div>
                   </li>
@@ -102,10 +101,9 @@ export function HomePage() {
                       2
                     </span>
                     <div>
-                      <p className="font-semibold text-neutral-900">Get Your Results</p>
+                      <p className="font-semibold text-neutral-900">See Real Homes You Can Buy</p>
                       <p className="text-sm text-neutral-600">
-                        See your maximum affordable home price, monthly payments, and utility
-                        estimates
+                        Browse actual properties within your budget with prices, photos, and details
                       </p>
                     </div>
                   </li>
@@ -114,10 +112,9 @@ export function HomePage() {
                       3
                     </span>
                     <div>
-                      <p className="font-semibold text-neutral-900">Make Informed Decisions</p>
+                      <p className="font-semibold text-neutral-900">Get Budget Health Warnings</p>
                       <p className="text-sm text-neutral-600">
-                        Review personalized recommendations and adjust your inputs to explore
-                        different scenarios
+                        Clear alerts if housing costs are too high, plus personalized financial recommendations
                       </p>
                     </div>
                   </li>
@@ -143,8 +140,8 @@ export function HomePage() {
           className="mt-16 text-center text-sm text-neutral-500"
         >
           <p>
-            This calculator uses mock data for demonstration purposes. Results should be used as
-            estimates only.
+            Covers the top 10 U.S. metros. Property recommendations show real listings when live data is enabled.
+            Results should be used as estimates only - always consult with a mortgage professional.
           </p>
         </motion.div>
       </div>

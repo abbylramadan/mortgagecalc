@@ -1,4 +1,4 @@
-import type { UserInputs, CalculationResults, MonthlyPayment } from '../../types/calculator';
+import type { UserInputs, CalculationResults, MonthlyPayment, Municipality } from '../../types/calculator';
 import { calculateMonthlyNetIncome } from './taxes';
 import {
   calculateMonthlyPayment,
@@ -11,49 +11,78 @@ import { calculateUtilities } from './utilities';
 import { getInterestRate, getLoanConfig } from '../../data/interestRates';
 import { getMunicipalityById } from '../../data/municipalities';
 import { getEstimatedSqft } from '../../data/sqftAverages';
+import { fetchMarketData, marketDataToMunicipality } from '../../services/marketDataService';
 
 /**
  * Calculate maximum affordable home price
  * Uses iterative approach to solve for home price given payment constraints
  */
-export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResults {
+export async function calculateMaxAffordableHome(
+  inputs: UserInputs,
+  options?: { maxHousingRatio?: number }
+): Promise<CalculationResults> {
   // 1. Calculate monthly income
   const monthlyGrossIncome = inputs.annualIncome / 12;
 
-  // 2. Get municipality data
-  const municipality = getMunicipalityById(inputs.municipalityId);
-  if (!municipality) {
-    throw new Error('Municipality not found');
+  // 2. Get municipality data (from ZIP code or legacy municipality ID)
+  let municipality: Municipality | undefined;
+
+  if (inputs.zipCode) {
+    // Fetch market data for ZIP code
+    const marketData = await fetchMarketData(inputs.zipCode);
+    municipality = marketDataToMunicipality(marketData);
+  } else {
+    // Fallback to legacy municipality lookup
+    municipality = getMunicipalityById(inputs.municipalityId);
   }
 
-  // 3. Calculate monthly net income (after taxes)
+  if (!municipality) {
+    throw new Error('Unable to load market data for this location');
+  }
+
+  // 3. Auto-determine loan type based on down payment and market conditions
+  const downPaymentPercent = inputs.downPaymentAmount > 0
+    ? (inputs.downPaymentAmount / municipality.medianHomePrice) * 100
+    : 0;
+
+  let loanType: 'FHA' | 'Conventional';
+  if (downPaymentPercent < 20) {
+    // Low down payment → FHA is better (lower down payment requirement, more accessible)
+    loanType = 'FHA';
+  } else {
+    // 20%+ down payment → Conventional is better (no PMI)
+    loanType = 'Conventional';
+  }
+
+  // 4. Calculate monthly net income (after taxes)
   const monthlyNetIncome = calculateMonthlyNetIncome(inputs.annualIncome, municipality.state);
 
-  // 4. Calculate total monthly debts
+  // 5. Calculate total monthly debts
   const totalMonthlyDebts =
     inputs.monthlyDebts.carLoans +
     inputs.monthlyDebts.studentLoans +
     inputs.monthlyDebts.creditCards +
     inputs.monthlyDebts.other;
 
-  // 5. Get interest rate and loan config based on FICO and loan type
-  const interestRate = getInterestRate(inputs.ficoScore, inputs.preferredLoanType);
-  const loanConfig = getLoanConfig(inputs.ficoScore, inputs.preferredLoanType);
+  // 6. Get interest rate and loan config based on FICO and auto-determined loan type
+  const interestRate = getInterestRate(inputs.ficoScore, loanType);
+  const loanConfig = getLoanConfig(inputs.ficoScore, loanType);
 
   if (!loanConfig) {
     throw new Error('Loan configuration not found');
   }
 
   // 6. Calculate max monthly housing payment using DTI ratios
-  // Front-end ratio: 28% of gross income (housing only)
-  const frontEndMax = monthlyGrossIncome * 0.28;
+  // Front-end ratio: user-adjustable hard cap on housing as % of gross income (default 28%)
+  const frontEndRatio = options?.maxHousingRatio ?? 0.28;
+  const frontEndMax = monthlyGrossIncome * frontEndRatio;
 
   // Back-end ratio: varies by loan type (all debts including housing)
   const backEndMax = monthlyGrossIncome * loanConfig.requirements.maxDebtToIncomeRatio;
   const availableForHousing = backEndMax - totalMonthlyDebts;
 
-  // Use the more conservative limit
-  const maxMonthlyPayment = Math.min(frontEndMax, availableForHousing);
+  // Honor the user's housing cap as a hard ceiling alongside the lender back-end limit
+  const maxMonthlyPayment = Math.max(0, Math.min(frontEndMax, availableForHousing));
 
   // 7. Iteratively solve for maximum home price
   const maxHomePrice = calculateMaxHomePrice({
@@ -62,7 +91,7 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
     interestRate,
     loanTerm: 30,
     propertyTaxRate: municipality.propertyTaxRate,
-    loanType: inputs.preferredLoanType,
+    loanType: loanType,
     loanConfig,
   });
 
@@ -81,7 +110,7 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
     interestRate,
     loanTerm: 30,
     propertyTaxRate: municipality.propertyTaxRate,
-    loanType: inputs.preferredLoanType,
+    loanType: loanType,
     loanConfig,
   });
 
@@ -92,13 +121,18 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
   };
 
   // 11. Calculate disposable income
+  const totalMonthlySavings = inputs.monthlySavings
+    ? inputs.monthlySavings.retirement401k + inputs.monthlySavings.hsa + inputs.monthlySavings.healthcare + inputs.monthlySavings.other
+    : 0;
+
   const totalMonthlyObligations =
     monthlyPayment.total + utilities.total + totalMonthlyDebts;
   const monthlyDisposableIncome =
     monthlyNetIncome -
     totalMonthlyObligations -
     inputs.monthlyFoodExpenses -
-    inputs.monthlyFunExpenses;
+    inputs.monthlyFunExpenses -
+    totalMonthlySavings;
 
   // 12. Calculate DTI ratio
   const housingDTI = monthlyPayment.total / monthlyGrossIncome;
@@ -115,7 +149,7 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
     maxHomePrice,
     municipality,
     downPaymentPercent: (inputs.downPaymentAmount / maxHomePrice) * 100,
-    loanType: inputs.preferredLoanType,
+    loanType: loanType,
   });
 
   // 14. Generate warnings
@@ -124,10 +158,11 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
     emergencyFund: inputs.emergencyFund,
     monthlyPayment: monthlyPayment.total,
     totalDTI,
+    housingDTI,
     downPaymentPercent: (inputs.downPaymentAmount / maxHomePrice) * 100,
     maxHomePrice,
     municipality,
-    loanType: inputs.preferredLoanType,
+    loanType: loanType,
   });
 
   return {
@@ -140,6 +175,7 @@ export function calculateMaxAffordableHome(inputs: UserInputs): CalculationResul
     estimatedSqft,
     interestRate,
     loanTerm: 30,
+    loanType, // Auto-determined based on down payment and market
     recommendations,
     warnings,
   };
@@ -307,14 +343,14 @@ function generateRecommendations(params: {
     );
   }
 
-  // FHA vs Conventional recommendation based on down payment
-  if (loanType === 'Conventional' && downPaymentPercent < 10 && maxHomePrice < municipality.medianHomePrice) {
+  // Explain the auto-determined loan type
+  if (loanType === 'FHA') {
     recommendations.push(
-      'With a low down payment in this price range, an FHA loan might offer better terms and lower rates. Consider comparing both options.'
+      `Based on your ${downPaymentPercent.toFixed(1)}% down payment, we've calculated your budget using an FHA loan. FHA loans require as little as 3.5% down and are ideal for first-time homebuyers, though they include lifetime mortgage insurance.`
     );
-  } else if (loanType === 'FHA' && downPaymentPercent >= 20) {
+  } else if (loanType === 'Conventional') {
     recommendations.push(
-      'With a 20%+ down payment, a Conventional loan would eliminate mortgage insurance and likely save you money over the loan term.'
+      `With your ${downPaymentPercent.toFixed(1)}% down payment, you qualify for a Conventional loan with no PMI. This typically offers better long-term value than FHA loans.`
     );
   }
 
@@ -364,6 +400,7 @@ function generateWarnings(params: {
   emergencyFund: number;
   monthlyPayment: number;
   totalDTI: number;
+  housingDTI: number;
   downPaymentPercent: number;
   maxHomePrice: number;
   municipality: any;
@@ -374,6 +411,7 @@ function generateWarnings(params: {
     emergencyFund,
     monthlyPayment,
     totalDTI,
+    housingDTI,
     downPaymentPercent,
     maxHomePrice,
     municipality,
@@ -381,6 +419,21 @@ function generateWarnings(params: {
   } = params;
 
   const warnings: string[] = [];
+
+  // Housing cost warnings - these are critical!
+  if (housingDTI > 0.40) {
+    warnings.push(
+      `Warning: Housing costs would consume ${(housingDTI * 100).toFixed(0)}% of your gross income. This is dangerously high and leaves little room for other expenses, savings, or emergencies. Financial experts recommend keeping housing under 28%. Consider a lower price range.`
+    );
+  } else if (housingDTI > 0.35) {
+    warnings.push(
+      `Caution: Housing costs would be ${(housingDTI * 100).toFixed(0)}% of your gross income, which is quite high. This may feel financially tight and limit your ability to save or handle unexpected expenses. Aim to stay closer to 28% for better financial flexibility.`
+    );
+  } else if (housingDTI > 0.30) {
+    warnings.push(
+      `Note: Housing costs would be ${(housingDTI * 100).toFixed(0)}% of your gross income, slightly above the recommended 28%. While manageable, this leaves less cushion for savings and lifestyle expenses than ideal.`
+    );
+  }
 
   // Critical market price warning
   if (maxHomePrice < municipality.minRealisticPrice * 0.7) {

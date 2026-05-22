@@ -65,7 +65,7 @@ export function Step1Income() {
             value={inputValue}
             onChange={handleChange}
             onBlur={handleBlur}
-            placeholder="$75,000"
+            placeholder="75,000"
             prefix="$"
             error={error}
             helpText="Enter your total annual income before taxes"
